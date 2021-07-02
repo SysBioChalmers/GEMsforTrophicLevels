@@ -1,0 +1,29 @@
+exchange_met,lb,ub
+glucose,-37.4,-37.4
+fatty acid-uptake pool,-6.82,-6.82
+protein-uptake pool,-26.7,-26.7
+H2O,-1000,1000
+H+,-1000,1000
+hydroxide,-1000,1000
+biomass,0,1000
+ATP,0,1000
+CO2,0,1000
+urea,0,1000
+urate,0,1000
+allantoin,0,0
+NH3,0,0
+zinc,-1000,0
+selenate,-1000,0
+sulfate,0,1000
+Na+,-1000,0
+Mg2+,-1000,0
+Li+,-1000,0
+K+,-1000,0
+iodide,-1000,0
+Fe2+,-1000,0
+Fe3+,-1000,0
+Cu2+,-1000,0
+O2,-1000,0
+Pi,-1000,0
+chloride,-1000,0
+Ca2+,-1000,0
