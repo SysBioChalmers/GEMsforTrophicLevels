@@ -1,6 +1,50 @@
-%
-% compare GEMs
-% 
+
+
+%% generate GEMs
+
+
+% Load Human-GEM as v1.6.0
+load('../data/GEMs/HumanGEM_1_6.mat');
+
+
+% get the JSON file names
+files = dir(fullfile('../data/orthologPairs', '*.JSON'));
+
+% load files having ortholog pairs one by one
+for j = 1:length(files)
+
+    taxonid = strrep(files(j).name,'.JSON','');
+    outfilename = join([taxonid, '.mat']);
+    outfile = fullfile('../data/GEMs',outfilename);
+    filename = fullfile(files(j).folder,files(j).name);
+
+    % load ortholog pairs
+    input = jsondecode(fileread(filename));
+    orthlogPairs = transpose(struct2cell(input.orthologs));
+    orthlogPairs(:,3) = [];
+    
+    % get model via orthology
+    model = getModelFromOrthology(ihuman, orthlogPairs);
+
+    % add metadata info
+    input.species(1) = upper(input.species(1));
+    model.id = strrep(input.species,'_',' ');
+    model.annotation.taxonomy = input.taxonID;
+    model.annotation.defaultLB = -1000;
+    model.annotation.defaultUB = 1000;
+    model.description = ['The genome-scale metabolic model of ', input.scientifcName];
+
+    % remove unnecessary fields
+    fieldsToRemove = {'metMiriams';'rxnFrom';'metFrom';'geneFrom';'rxnMiriams'};
+    model = rmfield(model,intersect(fieldnames(model), fieldsToRemove));
+
+    save(outfile,'model');
+
+end
+
+
+%% compare GEMs
+
 
 % load table for species
 T = readtable('../data/GEMs/Table_S1.csv');
