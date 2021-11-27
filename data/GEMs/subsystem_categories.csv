@@ -1,26 +1,28 @@
-category,col,subsystem
-1,grey,Biotin metabolism
-1,grey,Exchange/demand reactions
-1,grey,Transport reactions
-2,grey,Arachidonic acid metabolism
-2,grey,Bile acid biosynthesis
-2,grey,Fatty acid biosynthesis
-2,grey,Fatty acid elongation (even-chain)
-2,grey,Formation and hydrolysis of cholesterol esters
-2,grey,Sphingolipid metabolism
-4,papayawhip,Fatty acid activation (endoplasmic reticular)
-4,papayawhip,Fatty acid oxidation
-1,grey,Inositol phosphate metabolism
-3,slategray2,Nucleotide metabolism
-3,slategray2,Purine metabolism
-5,darkred,"Alanine, aspartate and glutamate metabolism"
-5,darkred,Folate metabolism
-5,darkred,"Glycine, serine and threonine metabolism"
-5,darkred,Histidine metabolism
-5,darkred,Lysine metabolism
-5,darkred,"Phenylalanine, tyrosine and tryptophan biosynthesis"
-5,darkred,"Valine, leucine, and isoleucine metabolism"
-6,orangered,Glycolysis / Gluconeogenesis
-6,orangered,Oxidative phosphorylation
-6,orangered,Pentose phosphate pathway
-6,orangered,Tricarboxylic acid cycle and glyoxylate/dicarboxylate metabolism
+category,subsystem
+1,Biotin metabolism
+1,Exchange/demand reactions
+1,Transport reactions
+2,Arachidonic acid metabolism
+2,Bile acid biosynthesis
+2,Fatty acid biosynthesis
+2,Fatty acid elongation (even-chain)
+2,Formation and hydrolysis of cholesterol esters
+2,Sphingolipid metabolism
+4,Fatty acid activation (endoplasmic reticular)
+4,Fatty acid oxidation
+1,Inositol phosphate metabolism
+1,Nucleotide metabolism
+5,Purine metabolism
+5,"Alanine, aspartate and glutamate metabolism"
+1,Folate metabolism
+5,"Glycine, serine and threonine metabolism"
+5,Histidine metabolism
+5,Lysine metabolism
+5,"Phenylalanine, tyrosine and tryptophan biosynthesis"
+5,Cysteine and methionine metabolism
+5,"Valine, leucine, and isoleucine metabolism"
+6,Glycolysis / Gluconeogenesis
+6,Oxidative phosphorylation
+6,Pentose phosphate pathway
+6,Tricarboxylic acid cycle and glyoxylate/dicarboxylate metabolism
+5,Tryptophan metabolism
