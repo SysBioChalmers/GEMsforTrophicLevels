@@ -449,7 +449,7 @@ write.csv(Human_data, file = "Human_data.csv", row.names = FALSE)
 
 ### GEM data analyses & figures
 
-CLP_maxATP <- read_csv("CLPmodel_maxATP_with_AMP_allowance.txt")
+CLP_maxATP <- read_csv("CLPmodel_maxATP_with_AMP_allowance_ver2.txt")
 colnames(CLP_maxATP)[1] <- "taxonID"
 CLP_maxATP <- merge(spp_GEMs_for_sims, CLP_maxATP[,c(1,2,5)])
 #remove platypus
@@ -480,11 +480,14 @@ plot(Table_S1$Trophic.level, Table_S1$diet_percent_prot, col=Table_S1$color,
      xlab="trophic level", ylab="% (g/g diet)", main="proteins")
 
 
+
 #Fig 2A
 
 plot(Table_S1$Trophic.level, Table_S1$CLPmodel_max_ATP, col=Table_S1$color,
      xlim=c(1,5), ylim=c(0,50), cex=1.2, las=1,
      xlab="trophic level", ylab="max ATP (mmol)")
+
+#Fig 4B
 
 plot(Table_S1$Trophic.level, Table_S1$CLPmodel_maxATP_AMP10g, pch=21, bg=Table_S1$color, 
      xlim=c(1,5), ylim=c(0,80), cex=1.2, las=1,
@@ -494,91 +497,101 @@ plot(Table_S1$Trophic.level, Table_S1$CLPmodel_max_ATP, col=Table_S1$color,
      xlim=c(1,5), ylim=c(0,80), cex=1.2, axes=F, xlab="", ylab="")
 
 
-plot(c(1.3,1.3), c(40,32), col=c("orange2", "skyblue"),
-     xlim=c(1,5), ylim=c(0,50), cex=1.2, las=1,
-     xlab="trophic level", ylab="max ATP (mmol)")
-text(1.7,40, "terrestrial ", adj=0 )
-text(1.7,32, "aquatic ", adj=0)
 
 
 # load random sampling data:
 #creat file list
 filelist = list.files(pattern = "^randomSample")
 
-library(data.table)
-# Read all the files and create a FileName column to store filenames
-DT_1 <- rbindlist( sapply(filelist, fread, simplify = FALSE),
-                 use.names = TRUE, idcol = "FileName" )
-DT_1$randomSample_subsystem <- NULL
 
 
-# grab all sample names
-CLPtaxonID <- unique(DT$FileName)
-for(i in 1:length(CLPtaxonID)){
-  CLPtaxonID[i] <- strsplit(CLPtaxonID[i],"_")[[1]][4]
-  CLPtaxonID[i] <- sub("*.txt$", "", CLPtaxonID[i])
-}
-
-#build dataframe
-randomSample <- as.data.frame(unique(DT$randomSample_rxns))
-colnames(randomSample) <- "randomSample_rxns"
-for(i in 1:length(CLPtaxonID)){
-  dframe <- (DT[grep(CLPtaxonID[i], DT$FileName), c("randomSample_rxns", "randomSample_flux")])
-  randomSample <- merge(randomSample, dframe, all.x=T)
-  colnames(randomSample)[i+1] <- paste("mean_flux", CLPtaxonID[i], sep="_") 
-}
-
-remove(filelist, DT, DT_1, DT_2)
+i <- 1
+read_temp <- fread(filelist[i])
+taxonID_temp <- strsplit(filelist[i],"_")[[1]][4]
+taxonID_temp <- sub("*.txt$", "_mean", taxonID_temp)
+df_temp <- as.data.frame(read_temp$randomSample_rxns)
+df_temp$col2 <- rowMeans(read_temp[,2:1001])
+colnames(df_temp) <- c("rxn",taxonID_temp)
+randomSample_mean <- df_temp
 
 
-rSamp_clean <- randomSample[,2:34]
-rSamp_clean[rSamp_clean < 1e-6 & rSamp_clean > -1e-6] <- NA
-rSamp_clean$randomSample_rxns <- randomSample$randomSample_rxns
+for(i in 2:length(filelist)){
+  print(i)
+  read_temp <- fread(filelist[i])
+  taxonID_temp <- strsplit(filelist[i],"_")[[1]][4]
+  taxonID_temp <- sub("*.txt$", "_mean", taxonID_temp)
+  df_temp <- as.data.frame(read_temp$randomSample_rxns)
+  df_temp$col2 <- rowMeans(read_temp[,2:1001])
+  colnames(df_temp) <- c("rxn",taxonID_temp)
   
-rSamp_clean$keep <- "yes"
-for(i in 1:nrow(rSamp_clean)){
-  if(all(is.na(rSamp_clean[i,1:33]))){rSamp_clean[i,"keep"] <- "no"}
+  randomSample_mean <- merge(randomSample_mean, df_temp, all=T)
+  remove(read_temp, df_temp)
 }
 
-rSamp_clean <- rSamp_clean[rSamp_clean$keep=="yes",]
-randomSample <- rSamp_clean[,c(34, 1:33)]
+#remove reactions that carry 0 flux in ALL models 
+#flux of less than 1e-6 (positive or negative) is taken as 0
+randomSample_mean[randomSample_mean < 1e-6 & randomSample_mean > -1e-6] <- NA
+
+randomSample_mean$sum <- rowSums(randomSample_mean[,2:32], na.rm=T)
+randomSample_mean <- randomSample_mean[randomSample_mean$sum !=0, 1:32]
+
 
 HumanGEM_1_6_0_rxns <- read_excel("HumanGEM_1_6_0_rxns.xlsx")
-randomSample <- merge(HumanGEM_1_6_0_rxns, randomSample, by.x="ID", by.y="randomSample_rxns", all.y=T)
+randomSample_mean <- merge(HumanGEM_1_6_0_rxns, randomSample_mean, by.x="ID", by.y="rxn", all.y=T)
+
+randomSample_mean <- randomSample_mean[!is.na(randomSample_mean$ID),]
 
 
-#grab trophic levels
 
-CLPtroph <- CLPtaxonID
-for(i in 1:length(CLPtaxonID)){
-  CLPtroph[i] <- Table_S1[grep(CLPtaxonID[i], Table_S1$taxonID), "Trophic.level"]
-}
-CLPtroph <- as.numeric(CLPtroph)
+#calculate Spearman correlation with all random sampling solutions
+#NB takes a long time to run
 
+randomSample_mean$Spearman_rho <- NA
+randomSample_mean$number_data_points <- NA
 
-randomSample$Spearman_rho <- NA
-randomSample$number_data_points <- NA
-for(i in 1:nrow(randomSample)){
-  randomSample[i,"number_data_points"] <- length(na.omit(unlist(randomSample[i,5:37])))
-  randomSample[i,"Spearman_rho"] <- cor(CLPtroph, unlist(randomSample[i,5:37]), use="complete.obs", method="spearman")
+for(i in 1:nrow(randomSample_mean)){
+  if(i%%10 == 0){print(i)}
+  rxn_ID <- randomSample_mean[i,1]
+  flux_temp <- as.numeric()
+  TL_temp <- as.numeric()
+  for(j in 5:35){
+    if(!is.na(randomSample_mean[i,j])){
+      taxon_ID <- colnames(randomSample_mean)[j]
+      taxon_ID <- sub("_mean","", taxon_ID)
+      taxon_TL <- Table_S1[Table_S1$taxonID==taxon_ID,"Trophic.level"]
+      filename <- paste("randomSample_maxATPconstrained_", taxon_ID, ".txt", sep="")
+      read_temp <- fread(filename)
+      
+      RS_temp <- unlist(read_temp[read_temp$randomSample_rxns==rxn_ID, 2:1001])
+      flux_temp <- c(flux_temp, RS_temp)
+      TL_temp <- c(TL_temp, rep(taxon_TL, 1000))
+      remove(read_temp, RS_temp)
+    }
+  }
   
+  randomSample_mean[i,"Spearman_rho"] <- cor(TL_temp, flux_temp, use="complete.obs", method="spearman")
+  randomSample_mean[i,"number_data_points"] <- length(TL_temp)
+  
+  remove(flux_temp, TL_temp)
 }
 
-randomSample <- randomSample[order(randomSample$SUBSYSTEM),]
-
-remove(rSamp_clean)
-
-Table_S2 <- randomSample
-write.csv(Table_S2, file = "Table_S2.csv", row.names = FALSE)
 
 
 
-randSamp_pos <- Table_S2[Table_S2$Spearman_rho > 0.75 & Table_S2$number_data_points > 17,]
-randSamp_neg <- Table_S2[Table_S2$Spearman_rho < -0.75 & Table_S2$number_data_points > 17,]
-Table_S2_plots <- rbind(randSamp_pos, randSamp_neg)
+#write Table S2
+
+randomSample_mean <- randomSample_mean[order(randomSample_mean$SUBSYSTEM),]
+Table_S2 <- randomSample_mean
+write.csv(Table_S2, file = "Table_S2_fixed.csv", row.names = FALSE)
+
+
+test_pos <- randomSample_mean[randomSample_mean$Spearman_rho>0.65 & randomSample_mean$number_data_points>17000,]
+test_neg <- randomSample_mean[randomSample_mean$Spearman_rho< -0.65 & randomSample_mean$number_data_points>17000,]
+Table_S2_plots <- rbind(test_pos, test_neg)
 Table_S2_plots <- Table_S2_plots[order(Table_S2_plots$SUBSYSTEM),]
 
-remove(randSamp_pos, randSamp_neg)
+
+remove(test_pos, test_neg)
 
 
 Fig_3 <- as.data.frame(table(Table_S2_plots$SUBSYSTEM))
@@ -587,104 +600,97 @@ Fig_3 <- Fig_3[Fig_3$`n in Table_S2_plots`>2,]
 
 x <- as.data.frame(table(HumanGEM_1_6_0_rxns$SUBSYSTEM))
 colnames(x) <- c("subsystem", "n in HumanGEM_1_6_0")
-
 Fig_3 <- merge(Fig_3, x)
-
 Fig_3$percent <- Fig_3$`n in Table_S2_plots` / Fig_3$`n in HumanGEM_1_6_0` * 100
 
-Fig_cat <- read_csv("subsystem categories.csv")
+Fig_cat <- read_csv("subsystem_categories_ver2.csv")
 
 Fig_3 <- merge(Fig_3, Fig_cat)
 Fig_3 <- Fig_3[Fig_3$category>2,]
-Fig_3 <- Fig_3[order(Fig_3$category, Fig_3$percent),]
-x <- sub("Tricarboxylic acid cycle", "TCA cycle", Fig_3$subsystem)
-Fig_3$subsystem <- x
+Fig_3 <- Fig_3[order(-Fig_3$category, Fig_3$percent),]
 
 
-#Fig 3: 600x500
+#Fig 3: 575x400
 par(oma=c(0,17,0,0))
-barplot(Fig_3$percent, col=Fig_3$col, horiz = T, xlim=c(0,30), axes=F,
+barplot(Fig_3$percent, horiz = T, xlim=c(0,30), axes=F, #col=Fig_3$col, 
         names.arg = Fig_3$subsystem, las=1, xlab="% rxns correlated with TL")
 axis(side=1, at=c(0,10,20,30), labels=c(0,10,20,30))
 par(oma=c(0,0,0,0))
 
 
+
+
+
+#grab taxonID and taxonTL
+
+taxonID <- colnames(Table_S2)[5:35]
+taxonID <- as.data.frame(strsplit(taxonID, "_"))
+taxonID <- as.data.frame(as.numeric(unlist(taxonID[1,])))
+colnames(taxonID) <- "taxonID"
+taxonID <- join(taxonID, Table_S1[,c(1,5)])
+
+taxonTL <- taxonID$Trophic.level
+taxonID <- taxonID$taxonID
+
+
+
+
+
 #glycolysis
-glycolysis <- Table_S2_plots[grep("Glycolysis", Table_S2_plots$SUBSYSTEM),]
-order <- c("HMR_4375", "HMR_4391", "HMR_4373", "HMR_4368", "HMR_4365", "HMR_4363")
+order <- c("HMR_4375", "HMR_4373", "HMR_4368", "HMR_4365", "HMR_4363", "HMR_6627")
 order <- as.data.frame(order)
 colnames(order) <- "ID"
-glyc_order <- join(order, glycolysis)
+glyc_order <- join(order, Table_S2)
 
-glyc_hm <- glyc_order[,5:37]
-glyc_hm <- glyc_hm[,order(CLPtroph)]
-glyc_hm[c(1,3,5),] <- -glyc_hm[c(1,3,5),]
+glyc_hm <- glyc_order[,5:35]
+glyc_hm <- glyc_hm[,order(taxonTL)]
+glyc_hm[c(1,2,4),] <- -glyc_hm[c(1,2,4),]
 
 
 
 # Fig 4 glycolysis: 600x550
 par(oma=c(0,0,0,5))
 heatmap.2(data.matrix(glyc_hm),
-          labRow=c("HMR_4375r", "HMR_4391", "HMR_4373r", "HMR_4368", "HMR_4365r", "HMR_4363"),
+          labRow=c("HMR_4375r",  "HMR_4373r", "HMR_4368", "HMR_4365r", "HMR_4363", "HMR_6627"),
           cexCol=1, labCol="",#labCol=sort(CLPtroph), #
           scale="none", dendrogram="none", Colv=F, Rowv=F, 
           trace="none", margins=c(6,6), col=rev(brewer.pal(10,"RdBu")),
           #col=colorRampPalette(c("ghostwhite","ghostwhite","ghostwhite", "salmon", "red4"))(n=10),
-          key = F, cexRow = 0.9
-          #density.info="none", keysize="2", key.title=NA, lhei=c(1.5,7), key.xlab="flux"
+          key = T, cexRow = 0.9,
+          density.info="none", keysize="2", key.title=NA, lhei=c(1.5,7), key.xlab="mean flux"
 ) 
 par(oma=c(0,0,0,0))
 #plot(1:32, sort(CLPtroph), ylim=c(2,4.5), type="o")
 
 
-#TCA cycle
-TCA_cycle <- Table_S2_plots[grep("Tricarboxylic acid cycle", Table_S2_plots$SUBSYSTEM),]
-order <- c("HMR_4145", "HMR_3787", "HMR_4652", "HMR_4410", "HMR_4408")
-order <- as.data.frame(order)
-colnames(order) <- "ID"
-TCA_order <- join(order, TCA_cycle)
-
-TCA_hm <- TCA_order[,5:37]
-TCA_hm <- TCA_hm[,order(CLPtroph)]
-TCA_hm[c(1,3),] <- -TCA_hm[c(1,3),]
-
-# Fig 4 TCA cycle: 625x560
-heatmap.2(data.matrix(TCA_hm),
-          #labRow=TCA_cycle$ID, 
-          labRow=c("HMR_4145r", "HMR_3787", "HMR_4652r", "HMR_4410", "HMR_4408"),
-          cexCol=1, labCol="",#labCol=sort(CLPtroph), #
-          scale="none", dendrogram="none", Colv=F, Rowv=F, 
-          trace="none", margins=c(6,6), col=(brewer.pal(9,"Reds")),
-          #col=colorRampPalette(c("ghostwhite","ghostwhite","ghostwhite", "salmon", "red4"))(n=10),
-          #key = F, cexRow = 0.9
-          density.info="none", keysize="2", key.title=NA, lhei=c(1.5,7), key.xlab="flux"
-) 
 
 
 #Lys_degradation
-Lys_degradation <- Table_S2_plots[grep("Lysine metabolism", Table_S2_plots$SUBSYSTEM),]
-Lys_degradation <- rbind(Lys_degradation, Table_S2_plots[grep("Tryptophan metabolism", Table_S2_plots$SUBSYSTEM),])
-order <- c("HMR_4288", "HMR_4239", "HMR_4599", "HMR_6415", "HMR_3164", "HMR_3166")
+
+order <- c("HMR_4288", "HMR_4739", "HMR_4599", "HMR_6415", "HMR_4243", "HMR_3164", "HMR_3166")
 order <- as.data.frame(order)
 colnames(order) <- "ID"
-Lys_order <- join(order, Lys_degradation)
+Lys_order <- join(order, Table_S2)
 
-Lys_hm <- Lys_order[,5:37]
-Lys_hm <- Lys_hm[,order(CLPtroph)]
+Lys_hm <- Lys_order[,5:35]
+Lys_hm <- Lys_hm[,order(taxonTL)]
 
 # Fig 5 Lysine: 600x550
 par(oma=c(0,0,0,5))
 heatmap.2(data.matrix(Lys_hm),
           #labRow=TCA_cycle$ID, 
-          labRow=c("HMR_4288", "HMR_4239", "HMR_4599", "HMR_6415", "HMR_3164", "HMR_3166"),
+          labRow=c("HMR_4288", "HMR_4739", "HMR_4599", "HMR_6415", "HMR_4243", "HMR_3164", "HMR_3166"),
           cexCol=1, labCol="",#labCol=sort(CLPtroph), #
           scale="none", dendrogram="none", Colv=F, Rowv=F, 
           trace="none", margins=c(6,6), col=(brewer.pal(9,"Reds")),
           #col=colorRampPalette(c("ghostwhite","ghostwhite","ghostwhite", "salmon", "red4"))(n=10),
           #key = F, cexRow = 0.9
-          density.info="none", keysize="2", key.title=NA, lhei=c(1.5,7), key.xlab="flux"
+          density.info="none", keysize="2", key.title=NA, lhei=c(1.5,7), key.xlab="mean flux"
 )
 par(oma=c(0,0,0,0))
+
+
+
 
 
 #his --> IMP
@@ -693,16 +699,18 @@ His_IMP <- c("HMR_4437",
              "HMR_4660",
              "HMR_4658",
              "HMR_3929",
-             "HMR_4503" )
+             "HMR_4503",
+             "HMR_4806",
+             "HMR_4814")
 His_IMP <- as.data.frame(His_IMP)
 colnames(His_IMP) <- "ID"
-His_IMP <- join(His_IMP, Table_S2_plots)
+His_IMP <- join(His_IMP, Table_S2)
 
 #Thr/Asn --> IMP
-AA_IMP <- c("HMR_4284", "HMR_3890", "HMR_4172")
+AA_IMP <- c("HMR_4284","HMR_4799", "HMR_4172", "HMR_4042") # "HMR_3890"
 AA_IMP <- as.data.frame(AA_IMP)
 colnames(AA_IMP) <- "ID"
-AA_IMP <- join(AA_IMP, Table_S2_plots)
+AA_IMP <- join(AA_IMP, Table_S2)
 
 #PRPP --> IMP
 PRPP_IMP <- c("HMR_4406",
@@ -719,10 +727,97 @@ PRPP_IMP <- c("HMR_4406",
               "HMR_4412" )
 PRPP_IMP <- as.data.frame(PRPP_IMP)
 colnames(PRPP_IMP) <- "ID"
-PRPP_IMP <- join(PRPP_IMP, Table_S2_plots)
+PRPP_IMP <- join(PRPP_IMP, Table_S2)
 
 
-#
+
+
+
+#Fig 3B-D correlation examples
+
+rxn_ID <- "HMR_4373"
+flux_temp <- as.numeric()
+TL_temp <- as.numeric()
+i <- grep(rxn_ID, Table_S2$ID)
+for(j in 5:35){
+  if(!is.na(Table_S2[i,j])){
+    taxon_ID <- colnames(Table_S2)[j]
+    taxon_ID <- sub("_mean","", taxon_ID)
+    taxon_TL <- Table_S1[Table_S1$taxonID==taxon_ID,"Trophic.level"]
+    filename <- paste("randomSample_maxATPconstrained_", taxon_ID, ".txt", sep="")
+    read_temp <- fread(filename)
+    RS_temp <- unlist(read_temp[read_temp$randomSample_rxns==rxn_ID, 2:1001])
+    
+    flux_temp <- c(flux_temp, RS_temp)
+    TL_temp <- c(TL_temp, rep(taxon_TL, 1000))
+    remove(read_temp, RS_temp)
+  }
+}
+
+plot(TL_temp, -flux_temp, main=rxn_ID, col=rgb(0,0,0,0.01), pch=19, xlim=c(1,5), ylim=c(-1000,1000), las=1,
+     xlab="trophic level", ylab="flux (n=31000)")
+cor(TL_temp, flux_temp, use="complete.obs", method="spearman")
+
+
+
+rxn_ID <- "HMR_4365"
+flux_temp <- as.numeric()
+TL_temp <- as.numeric()
+i <- grep(rxn_ID, Table_S2$ID)
+for(j in 5:35){
+  if(!is.na(Table_S2[i,j])){
+    taxon_ID <- colnames(Table_S2)[j]
+    taxon_ID <- sub("_mean","", taxon_ID)
+    taxon_TL <- Table_S1[Table_S1$taxonID==taxon_ID,"Trophic.level"]
+    filename <- paste("randomSample_maxATPconstrained_", taxon_ID, ".txt", sep="")
+    read_temp <- fread(filename)
+    RS_temp <- unlist(read_temp[read_temp$randomSample_rxns==rxn_ID, 2:1001])
+    
+    flux_temp <- c(flux_temp, RS_temp)
+    TL_temp <- c(TL_temp, rep(taxon_TL, 1000))
+    remove(read_temp, RS_temp)
+  }
+}
+
+plot(TL_temp, -flux_temp, main=rxn_ID, col=rgb(0,0,0,0.01), pch=19, xlim=c(1,5), ylim=c(-1000,200), las=1,
+     xlab="trophic level", ylab="flux (n=31000)")
+cor(TL_temp, flux_temp, use="complete.obs", method="spearman")
+
+
+rxn_ID <- "HMR_6627"
+flux_temp <- as.numeric()
+TL_temp <- as.numeric()
+i <- grep(rxn_ID, Table_S2$ID)
+for(j in 5:35){
+  if(!is.na(Table_S2[i,j])){
+    taxon_ID <- colnames(Table_S2)[j]
+    taxon_ID <- sub("_mean","", taxon_ID)
+    taxon_TL <- Table_S1[Table_S1$taxonID==taxon_ID,"Trophic.level"]
+    filename <- paste("randomSample_maxATPconstrained_", taxon_ID, ".txt", sep="")
+    read_temp <- fread(filename)
+    RS_temp <- unlist(read_temp[read_temp$randomSample_rxns==rxn_ID, 2:1001])
+    
+    flux_temp <- c(flux_temp, RS_temp)
+    TL_temp <- c(TL_temp, rep(taxon_TL, 1000))
+    remove(read_temp, RS_temp)
+  }
+}
+
+plot(TL_temp, flux_temp, main=rxn_ID, col=rgb(0,0,0,0.01), pch=19, xlim=c(1,5), ylim=c(-1000,200), las=1,
+     xlab="trophic level", ylab="flux (n=31000)")
+cor(TL_temp, flux_temp, use="complete.obs", method="spearman")
+
+
+
+
+
+remove(flux_temp, TL_temp)
+
+
+
+
+
+###
 x <- as.matrix(t(diet_composition[,2:4]))
 
 colnames(x) <- diet_composition$`EltronTriats Diet`
@@ -740,6 +835,64 @@ barplot(x[,c(9,8,11,10,1,#7,
         xlim=c(0,25), xlab="nutrient composition (%)")
 
 par(oma=c(0,0,0,0))
+
+
+
+
+
+
+
+
+
+##### case studies
+
+
+casestudy_monkey <- read_csv("casestudy_monkey_results.txt")
+x <- read_csv("CaseStudy_61622_monkey_Li_2006.csv")
+casestudy_monkey <- cbind(x, casestudy_monkey[,2])
+
+
+#400 x 320
+
+plot(1:14, casestudy_monkey$diet_percent_carb, ylim=c(0,8), pch=22, bg="orangered", type="b", xaxt="n", las=2,
+     xlab="", ylab="% (g/g diet)")
+par(new=T)
+plot(1:14, casestudy_monkey$diet_percent_lipids, ylim=c(0,8),pch=22, bg="darkred", axes=F, xlab="", ylab="", type="b")
+par(new=T)
+plot(1:14, casestudy_monkey$diet_percent_prot, ylim=c(0,8), pch=22,bg="papayawhip", axes=F, xlab="", ylab="", type="b")
+axis(1, at=1:14, labels=casestudy_monkey$month, las=2)
+mtext(c("2003", "2004"), side=1, at=c(4,10), line=3)
+
+
+plot(1:14, casestudy_monkey$monkey_ATP, ylim=c(0,15), ylab="max ATP (mmol)", xlab="", xaxt="n", type="b", col="orange2", las=2)
+axis(1, at=1:14, labels=casestudy_monkey$month, las=2)
+mtext(c("2003", "2004"), side=1, at=c(4,10), line=3)
+
+
+
+
+
+casestudy_fox <- read_csv("casestudy_fox_results.txt")
+x <- read_csv("CaseStudy_9627_fox_Needham_2014.csv")
+casestudy_fox <- cbind(x, casestudy_fox[,2])
+
+
+#200 x 320
+
+plot(1:3, casestudy_fox$diet_percent_carb, xlim=c(0.5,3.5),ylim=c(0,20), pch=22, bg="orangered", type="b", xaxt="n", las=2,
+     xlab="", ylab="% (g/g diet)")
+par(new=T)
+plot(1:3, casestudy_fox$diet_percent_lipids, xlim=c(0.5,3.5),ylim=c(0,20),pch=22, bg="darkred", axes=F, xlab="", ylab="", type="b")
+par(new=T)
+plot(1:3, casestudy_fox$diet_percent_prot, xlim=c(0.5,3.5),ylim=c(0,20), pch=22,bg="papayawhip", axes=F, xlab="", ylab="", type="b")
+axis(1, at=1:3, labels=casestudy_fox$season, las=2)
+#mtext("2005-2009", side=1, line=4)
+
+plot(1:3, casestudy_fox$fox_ATP,xlim=c(0.5,3.5), ylim=c(0,50), ylab="max ATP (mmol)", xlab="", xaxt="n", type="b", col="orange2", las=2)
+axis(1, at=1:3, labels=casestudy_fox$season, las=2)
+#mtext("2005-2009", side=1, line=4)
+
+
 
 
 

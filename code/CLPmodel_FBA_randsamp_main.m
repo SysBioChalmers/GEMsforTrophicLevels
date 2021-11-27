@@ -2,12 +2,14 @@ initCobraToolbox
 setRavenSolver('cobra')
 changeCobraSolver('gurobi','LP')
 
-% input:
-% human-GEM v1.6.0
-% animal GEMs
-% "spp_GEMs_for_sims.csv" containing GEMs with data
+% input requirements:
+% human-GEM v1.6.0 
+% a folder containing all full animal GEMs (30 plus human = 31 total)
+% "spp_GEMs_for_sims_ver2.csv" containing GEMs with data
 % "exchange_input_human.csv" containing open exchange reactions 
 % "Simian_genera.csv" of higher primates (Simians)
+% "CaseStudy_61622_monkey_Li_2006.csv", Golden Snub-Nosed Monkey (TaxonID: 61622) case study
+% "CaseStudy_9627_fox_Needham_2014.csv", Red Fox (TaxonID: 9627) case study
 % function "getCLPmodel"
 % function "randomSampling_vertGEM'
 % 
@@ -17,14 +19,12 @@ changeCobraSolver('gurobi','LP')
 
 
 %% load GEMs
+
 load('Human-GEM_1_6_0.mat')
 ihuman.id = '9606';
 
-% cd to folder containing full animal GEMs
-files = dir(fullfile('./', '*.mat'));
-
 % Load GEM list
-fid = fopen('spp_GEMs_for_sims.csv');
+fid = fopen('spp_GEMs_for_sims_ver2.csv');
 dataFile = textscan(fid,'%s %f32 %s %s %f32 %f32 %f32 %f32','Delimiter',',','HeaderLines',1);
 GEMlist_SciName = dataFile{1};
 GEMlist_taxonID = dataFile{2};
@@ -35,9 +35,9 @@ GEMlist_percent_dietcarb = dataFile{7};
 GEMlist_percent_dietfat = dataFile{8};
 fclose(fid);
 
-
 animalGEMs = {};
 animalGEMs = [animalGEMs,ihuman];
+
 
 % load all GEMs in list & collect into structure 
 for j = 2:length(GEMlist_taxonID) %1 is ihuman
@@ -49,7 +49,7 @@ end
 animalGEMs = animalGEMs(:);
 disp('animalGEMs loaded')
 
-%% get CLPmodels
+%% get CLP models
 
 % Load constraints file (human CLP)
 fid = fopen('exchange_input_human.csv');
@@ -276,7 +276,6 @@ animalCLPmodels = animalCLPmodels(:);
 disp('CLPmodels constructed')
 
 
-% for the constructed CLPmodels, move on to calculate max ATP
 
 
 %% max ATP
@@ -293,52 +292,10 @@ end
 
 max_ATP_results = table(GEMlist_taxonID(GEMlist_IDx_converted),CLPmodel_max_ATP);
 
+writetable(max_ATP_results, 'max_ATP_results');
 
 disp('max ATP done')
 
-
-%% max ATP with AMP allowance
-
-
-CLPmodel_maxATP_AMP2g=[];
-CLPmodel_maxATP_AMP5g=[];
-CLPmodel_maxATP_AMP10g=[];
-CLPmodel_maxATP_AMPunlimited=[];
-
-for i = 1:length(animalCLPmodels)
-    disp(i);
-   model = animalCLPmodels{i};
-   model.c(:) = 0;
-   model.c(find(ismember(model.rxns, 'EX_atp[e]'))) = 1; 
-   
-   model.ub(find(ismember(model.rxns, 'HMR_9262'))) = 0;
-   model.lb(find(ismember(model.rxns, 'HMR_9262'))) = -5.76;
-   max_ATP_sol = optimizeCbModel(model);
-   CLPmodel_maxATP_AMP2g = [CLPmodel_maxATP_AMP2g;max_ATP_sol.f];
-   
-   model.ub(find(ismember(model.rxns, 'HMR_9262'))) = 0;
-   model.lb(find(ismember(model.rxns, 'HMR_9262'))) = -14.4;
-   max_ATP_sol = optimizeCbModel(model);
-   CLPmodel_maxATP_AMP5g = [CLPmodel_maxATP_AMP5g;max_ATP_sol.f];
-   
-   model.ub(find(ismember(model.rxns, 'HMR_9262'))) = 0;
-   model.lb(find(ismember(model.rxns, 'HMR_9262'))) = -28.8;
-   max_ATP_sol = optimizeCbModel(model);
-   CLPmodel_maxATP_AMP10g = [CLPmodel_maxATP_AMP10g;max_ATP_sol.f];
-   
-   model.ub(find(ismember(model.rxns, 'HMR_9262'))) = 0;
-   model.lb(find(ismember(model.rxns, 'HMR_9262'))) = -1000;
-   max_ATP_sol = optimizeCbModel(model);
-   CLPmodel_maxATP_AMPunlimited = [CLPmodel_maxATP_AMPunlimited;max_ATP_sol.f];
-end
-
-maxATP_with_AMP_allowance = table(GEMlist_taxonID(GEMlist_IDx_converted), ...
-    CLPmodel_max_ATP, CLPmodel_maxATP_AMP2g, ...
-    CLPmodel_maxATP_AMP5g, CLPmodel_maxATP_AMP10g, CLPmodel_maxATP_AMPunlimited);
-writetable(maxATP_with_AMP_allowance, 'CLPmodel_maxATP_with_AMP_allowance');
-
-
-disp('max ATP with AMP allowance done')
 
 
 
@@ -347,27 +304,156 @@ disp('max ATP with AMP allowance done')
 for i = 1:length(animalCLPmodels)
     disp(['random sampling ' num2str(i) ' of ' num2str(length(animalCLPmodels)) ' GEMs'])
     model = animalCLPmodels{i}; 
-    %constrain ATP production to maxATP
-    %this asks: during the production of maxATP (from 100g of food), what are
-    %the average fluxes
+    %constrain ub of ATP production to maxATP, lb to 90% of maxATP
+	%do not calculate mean
     model.ub(find(ismember(model.rxns, 'EX_atp[e]'))) = CLPmodel_max_ATP(i);
-    model.lb(find(ismember(model.rxns, 'EX_atp[e]'))) = CLPmodel_max_ATP(i);
+    model.lb(find(ismember(model.rxns, 'EX_atp[e]'))) = 0.9 * CLPmodel_max_ATP(i);
     
     randomSample_sol = randomSampling_vertGEM(model,1000,true, true, false);
-    
-    randomSample_mean = mean(randomSample_sol,2); %mean of rows
-    randomSample_rxnIDx = find(randomSample_mean~=0);
-    randomSample_flux = randomSample_mean(randomSample_rxnIDx);
-    %randomSample_subsystem = model.subSystems(randomSample_rxnIDx);
-    randomSample_rxns = model.rxns(randomSample_rxnIDx);
-    
-    randomSample_result_table = table(randomSample_rxnIDx,randomSample_rxns,randomSample_flux);
+    randomSample_rxns = model.rxns;
+    randomSample_result_table = table(randomSample_rxns,randomSample_sol);
     
     filename = ['randomSample_maxATPconstrained_' num2str(GEMlist_taxonID(GEMlist_IDx_converted(i)))];
     writetable(randomSample_result_table, filename);
 end
 
 disp('random sampling done')
+
+
+
+
+
+%% case study: Golden Snub-Nosed Monkey (TaxonID: 61622) 
+% data from: https://onlinelibrary.wiley.com/doi/epdf/10.1002/ajp.20220
+
+% Load seasonal diet data (Fig 2)
+fid = fopen('CaseStudy_61622_monkey_Li_2006.csv');
+dataFile        = textscan(fid,'%f32 %s %f32 %f32 %f32 %f32 %f32 %f32 %f32',...
+    'Delimiter',',','HeaderLines',1);
+monkey_month     = dataFile{2};
+monkey_dietcarb     = dataFile{7};
+monkey_dietfat     = dataFile{8};
+monkey_dietprot     = dataFile{9};
+fclose(fid);
+
+model = animalCLPmodels{28}; 
+
+if model.id ~= 61622
+    EM='Wrong model! Get model for golden-snub-nosed monkey, TaxonID 61622';
+    dispEM(EM);
+end
+
+%sanity check: re-calculate max ATP 
+monkey_ATP=[];
+model.c(:) = 0;
+model.c(find(ismember(model.rxns, 'EX_atp[e]'))) = 1; 
+max_ATP_sol = optimizeCbModel(model);
+%max_ATP_sol.f;
+
+
+%find all exchange rxns 
+all_exchange_rxns = getExchangeRxns(model); %this is rxn IDs
+all_exchange_rxns = find(contains(model.rxns, all_exchange_rxns)); %rxn indices
+all_exchange_metIDx = zeros(length(all_exchange_rxns),1);
+for i = 1:length(all_exchange_rxns)
+	ex_met = find(model.S(:,all_exchange_rxns(i)));
+	all_exchange_metIDx(i,1) = ex_met;
+end
+all_exchange_mets = model.metNames(all_exchange_metIDx);
+
+%find dietcarb, fat, and prot exchange rxns
+dietcarb = all_exchange_rxns(find(ismember(all_exchange_mets, 'glucose')));
+dietfat = all_exchange_rxns(find(ismember(all_exchange_mets, 'fatty acid-uptake pool')));
+dietprot = all_exchange_rxns(find(ismember(all_exchange_mets, 'protein-uptake pool')));
+
+
+for i = 1:length(monkey_month)
+    model.ub(dietcarb) = -monkey_dietcarb(i) /180.16 * 1000;
+    model.lb(dietcarb) = -monkey_dietcarb(i) /180.16 * 1000;
+    model.ub(dietfat) = -monkey_dietfat(i) /280.63 * 1000;
+    model.lb(dietfat) = -monkey_dietfat(i) /280.63 * 1000;
+    model.ub(dietprot) = -monkey_dietprot(i) /111.06 * 1000;
+    model.lb(dietprot) = -monkey_dietprot(i) /111.06 * 1000;
+    
+    max_ATP_sol = optimizeCbModel(model);
+    monkey_ATP = [monkey_ATP;max_ATP_sol.f];
+    
+end
+
+
+monkey_results_table = table(monkey_month,monkey_ATP);
+writetable(monkey_results_table, 'casestudy_monkey_results');
+
+disp('monkey case study done')
+
+
+
+%% case study: Red Fox (TaxonID: 9627)
+% data from: https://link.springer.com/article/10.1007/s13364-014-0188-7
+
+% Load seasonal diet data (Fig 2)
+fid = fopen('CaseStudy_9627_fox_Needham_2014.csv');
+dataFile        = textscan(fid,'%s %f32 %f32 %f32 %f32 %f32 %f32 %f32',...
+    'Delimiter',',','HeaderLines',1);
+fox_season     = dataFile{1};
+fox_dietcarb     = dataFile{6};
+fox_dietfat     = dataFile{7};
+fox_dietprot     = dataFile{8};
+fclose(fid);
+
+model = animalCLPmodels{8}; 
+
+if model.id ~= 9627
+    EM='Wrong model! Get model for red fox, TaxonID 9627';
+    dispEM(EM);
+end
+
+%sanity check: re-calculate max ATP
+fox_ATP=[];
+model.c(:) = 0;
+model.c(find(ismember(model.rxns, 'EX_atp[e]'))) = 1; 
+max_ATP_sol = optimizeCbModel(model);
+%max_ATP_sol.f
+
+%find all exchange rxns 
+all_exchange_rxns = getExchangeRxns(model); %this is rxn IDs
+all_exchange_rxns = find(contains(model.rxns, all_exchange_rxns)); %rxn indices
+all_exchange_metIDx = zeros(length(all_exchange_rxns),1);
+for i = 1:length(all_exchange_rxns)
+	ex_met = find(model.S(:,all_exchange_rxns(i)));
+	all_exchange_metIDx(i,1) = ex_met;
+end
+all_exchange_mets = model.metNames(all_exchange_metIDx);
+
+%find dietcarb, fat, and prot exchange rxns
+dietcarb = all_exchange_rxns(find(ismember(all_exchange_mets, 'glucose')));
+dietfat = all_exchange_rxns(find(ismember(all_exchange_mets, 'fatty acid-uptake pool')));
+dietprot = all_exchange_rxns(find(ismember(all_exchange_mets, 'protein-uptake pool')));
+
+
+for i = 1:length(fox_season)
+    model.ub(dietcarb) = -fox_dietcarb(i) /180.16 * 1000;
+    model.lb(dietcarb) = -fox_dietcarb(i) /180.16 * 1000;
+    model.ub(dietfat) = -fox_dietfat(i) /280.63 * 1000;
+    model.lb(dietfat) = -fox_dietfat(i) /280.63 * 1000;
+    model.ub(dietprot) = -fox_dietprot(i) /111.06 * 1000;
+    model.lb(dietprot) = -fox_dietprot(i) /111.06 * 1000;
+    
+    max_ATP_sol = optimizeCbModel(model);
+    fox_ATP = [fox_ATP;max_ATP_sol.f];
+    
+end
+
+
+fox_results_table = table(fox_season,fox_ATP);
+writetable(fox_results_table, 'casestudy_fox_results');
+
+disp('fox case study done')
+
+
+
+
+
 
 
 
