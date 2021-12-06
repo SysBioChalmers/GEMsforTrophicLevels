@@ -1,1 +1,1 @@
-Amino acid and nucleotide metabolism shape the selection of trophic levels in animals
+### Amino acid and nucleotide metabolism shape the dietary energy efficiency of vertebrates
