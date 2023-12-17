@@ -47,7 +47,7 @@ end
 
 
 % load table for species
-T = readtable('../data/GEMs/Table_S1.csv');
+T = readtable('../data/GEMs/Table_S1.csv','HeaderLines', 1);
 
 % load models into a structure GEMs
 %clear GEMs
