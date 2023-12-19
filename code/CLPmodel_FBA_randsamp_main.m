@@ -10,12 +10,15 @@ changeCobraSolver('gurobi','LP')
 % "Simian_genera.csv" of higher primates (Simians)
 % "CaseStudy_61622_monkey_Li_2006.csv", Golden Snub-Nosed Monkey (TaxonID: 61622) case study
 % "CaseStudy_9627_fox_Needham_2014.csv", Red Fox (TaxonID: 9627) case study
+% "additional_casestudies_diet_seasonal_variations.csv", additional case studies
 % function "getCLPmodel"
 % function "randomSampling_vertGEM'
 % 
 % output is: a collection of CLP models (animalCLPmodels)
 % random sampling results
-% CLP model max ATP
+% max ATP each CLP model and corresponding diet
+% max ATP every CLP model and every diet
+% all case study results
 
 
 %% load GEMs
@@ -451,12 +454,104 @@ writetable(fox_results_table, 'casestudy_fox_results');
 disp('fox case study done')
 
 
+%% run all diet through all models
+
+
+max_ATP_matrix=zeros(31,31);
+
+for i = 1:length(animalCLPmodels)
+    %loop through models
+   disp(['GEM ' num2str(i)])
+   model = animalCLPmodels{i};
+   model.c(:) = 0;
+   model.c(find(ismember(model.rxns, 'EX_atp[e]'))) = 1; 
+   
+   exID_C = getIndexes(model,'HMR_9034', 'rxns'); %glc
+   exID_L = getIndexes(model,'EX_M01819[e]', 'rxns'); %FA
+   exID_P = getIndexes(model,'EX_M10013[c]_CLP', 'rxns'); %prot
+   
+   for j = 1:length(animalCLPmodels)
+       %loop through diet
+    model.ub(exID_C) = -GEMlist_percent_dietcarb(j) / 180.16 * 1000;
+    model.lb(exID_C) = -GEMlist_percent_dietcarb(j) / 180.16 * 1000;
+    
+    model.ub(exID_L) = -GEMlist_percent_dietfat(j) / 280.63 * 1000;
+    model.lb(exID_L) = -GEMlist_percent_dietfat(j) / 280.63 * 1000;
+    
+    model.ub(exID_P) = -GEMlist_percent_dietprot(j) / 111.06 * 1000;
+    model.lb(exID_P) = -GEMlist_percent_dietprot(j) / 111.06 * 1000;
+    
+    sol = optimizeCbModel(model);
+   
+    max_ATP_matrix(j,i) = sol.f;
+    %row is diet(j), colume is GEM(i)
+    if isempty(sol.x)
+        max_ATP_matrix(j,i) = 0;
+    end
+    
+    clear sol;
+    
+   end
+   
+end
+
+
+writematrix(max_ATP_matrix, 'max_ATP_matrix');
+
+disp('max ATP matrix done')
+
+% plot heatmap
+[~, idx] = sort(GEMlist_TL);
+max_ATP_matrix_sort = max_ATP_matrix(idx, idx);
+heatmap(GEMlist_CommonName(idx), GEMlist_CommonName(idx), max_ATP_matrix_sort.')
 
 
 
 
 
 
+%% additional analysis seaonsal variation in diet
+
+% Load data
+fid = fopen('additional_casestudies_diet_seasonal_variations.csv');
+dataFile        = textscan(fid,'%f32 %s %s %f32 %f32 %f32 %s ',...
+    'Delimiter',',','HeaderLines',1);
+svar_taxonID     = dataFile{1};
+svar_marker     = dataFile{7};
+svar_dietcarb     = dataFile{4};
+svar_dietfat     = dataFile{5};
+svar_dietprot     = dataFile{6};
+
+fclose(fid);
+
+svar_ATP = [];
+
+for i = 1:length(svar_taxonID)
+    j = find(ismember(GEMlist_taxonID, svar_taxonID(i)));
+    model = animalCLPmodels{j}; 
+   
+    exID_C = getIndexes(model,'HMR_9034', 'rxns'); %glc
+    model.ub(exID_C) = -svar_dietcarb(i) / 180.16 * 1000;
+    model.lb(exID_C) = -svar_dietcarb(i) / 180.16 * 1000;
+
+    exID_L = getIndexes(model,'EX_M01819[e]', 'rxns'); %FA
+    model.ub(exID_L) = -svar_dietfat(i) / 280.63 * 1000;
+    model.lb(exID_L) = -svar_dietfat(i) / 280.63 * 1000;
+
+    exID_P = getIndexes(model,'EX_M10013[c]_CLP', 'rxns'); %prot
+    model.ub(exID_P) = -svar_dietprot(i) / 111.06 * 1000;
+    model.lb(exID_P) = -svar_dietprot(i) / 111.06 * 1000;
+
+    sol = optimizeCbModel(model);
+    svar_ATP = [svar_ATP;sol.f];
+   
+end
+
+svar_results_table = table(svar_taxonID, svar_marker, svar_dietcarb, svar_dietfat, svar_dietprot, svar_ATP);
+
+writetable(svar_results_table, 'additional_casestudies_results');
+
+disp('additional casestudies of seaonsal variation additional analysis done')
 
 
 
