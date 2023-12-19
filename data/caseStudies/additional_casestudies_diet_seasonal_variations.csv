@@ -1,0 +1,10 @@
+﻿taxonID,ScientificName,CommonName,diet_percent_carb,diet_percent_lipids,diet_percent_prot,seasonal marker
+9823,Sus scrofa,Pig,10.41968667,6.624330175,7.33469905,Jan-Apr
+9823,Sus scrofa,Pig,10.88763667,6.423254066,6.819549748,May-Aug
+9823,Sus scrofa,Pig,10.81744417,6.421520271,6.911186962,Sep-Dec
+74940,Oncorhynchus tshawytscha,Chinook Salmon,0.022883636,2.589398161,16.77391045,1994
+74940,Oncorhynchus tshawytscha,Chinook Salmon,0.010314545,3.128413112,17.81085755,1995
+244447,Cynoglossus semilaevis,Tongue Sole,0.056138182,1.163304793,14.03041813,Spring
+244447,Cynoglossus semilaevis,Tongue Sole,0.049825455,1.434020822,14.55121667,Summer
+244447,Cynoglossus semilaevis,Tongue Sole,0.049994545,1.4267695,14.53726671,Autumn
+244447,Cynoglossus semilaevis,Tongue Sole,0.049994545,1.4267695,14.53726671,Winter
